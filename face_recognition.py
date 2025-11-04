@@ -117,7 +117,8 @@ class FaceRecognitionService:
         
         for id_anggota, stored_embedding in stored_embeddings:
             try:
-                if stored_embedding and len(stored_embedding) > 0:
+                # Validasi stored_embedding adalah numpy array dengan ukuran > 0
+                if stored_embedding is not None and isinstance(stored_embedding, np.ndarray) and stored_embedding.size > 0:
                     # Hitung cosine similarity
                     similarity = cosine_similarity(
                         [test_embedding], 
@@ -128,7 +129,7 @@ class FaceRecognitionService:
                         best_score = similarity
                         best_match = id_anggota
             except Exception as e:
-                print(f"Error calculating similarity: {str(e)}")
+                print(f"Error calculating similarity for {id_anggota}: {str(e)}")
                 continue
         
         # Return jika score di atas threshold
@@ -154,3 +155,89 @@ class FaceRecognitionService:
         except Exception as e:
             print(f"Error saving image: {str(e)}")
             return False
+    
+    def find_best_match_from_db(self, test_embedding, db_session, threshold=0.7):
+        """
+        Cari kecocokan terbaik dari embedding dengan data di database
+        
+        Args:
+            test_embedding: Embedding yang akan dicocokkan
+            db_session: SQLAlchemy database session
+            threshold: Threshold similarity (default 0.7)
+            
+        Returns:
+            Dictionary dengan data anggota dan similarity, atau None jika tidak cocok
+            Format: {
+                'id_anggota': '...',
+                'nama': '...',
+                'divisi': '...',
+                'similarity': 0.95
+            }
+        """
+        try:
+            # Import models di dalam method untuk menghindari circular import
+            from models import Anggota, VektorWajah
+            
+            # Ambil semua vektor wajah dari database
+            vektor_list = db_session.query(VektorWajah).all()
+            
+            if not vektor_list:
+                print("No face embeddings found in database")
+                return None
+            
+            # Siapkan stored_embeddings untuk find_best_match
+            stored_embeddings = []
+            for vektor in vektor_list:
+                try:
+                    # Pastikan vektor.vektor adalah numpy array
+                    if isinstance(vektor.vektor, str):
+                        # Jika masih string, convert ke numpy array
+                        import json
+                        embedding_array = np.array(json.loads(vektor.vektor))
+                    else:
+                        embedding_array = np.array(vektor.vektor)
+                    
+                    stored_embeddings.append((vektor.id_anggota, embedding_array))
+                    print(f"✓ Loaded embedding for {vektor.id_anggota} (shape: {embedding_array.shape})")
+                except Exception as e:
+                    print(f"✗ Error processing embedding for {vektor.id_anggota}: {str(e)}")
+                    continue
+            
+            if not stored_embeddings:
+                print("No valid embeddings to compare")
+                return None
+            
+            print(f"Total valid embeddings: {len(stored_embeddings)}")
+            
+            # Gunakan method find_best_match yang sudah ada
+            best_id_anggota, similarity = self.find_best_match(
+                test_embedding, 
+                stored_embeddings, 
+                threshold
+            )
+            
+            if not best_id_anggota:
+                print(f"No match found (best similarity: {similarity:.3f}, threshold: {threshold})")
+                return None
+            
+            print(f"✓ Best match: {best_id_anggota} (similarity: {similarity:.3f})")
+            
+            # Ambil data anggota
+            anggota = db_session.query(Anggota).filter_by(id_anggota=best_id_anggota).first()
+            
+            if not anggota:
+                print(f"Anggota {best_id_anggota} not found in database")
+                return None
+            
+            return {
+                'id_anggota': anggota.id_anggota,
+                'nama': anggota.nama,
+                'divisi': anggota.divisi,
+                'similarity': float(similarity)
+            }
+            
+        except Exception as e:
+            print(f"Error in find_best_match_from_db: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return None

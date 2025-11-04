@@ -35,6 +35,7 @@ instance/
 *.db
 *.sqlite
 *.sqlite3
+*.sql
 
 # Upload Data
 data/
