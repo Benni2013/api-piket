@@ -14,7 +14,7 @@ class FaceRecognitionService:
         """Inisialisasi FaceNet embedder"""
         self.embedder = FaceNet()
         self.face_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+            cv2.data.haarcascades + 'haarcascade_frontalface_alt2.xml'
         )
     
     def crop_face_oval(self, img):
@@ -166,17 +166,17 @@ class FaceRecognitionService:
             threshold: Threshold similarity (default 0.7)
             
         Returns:
-            Dictionary dengan data anggota dan similarity, atau None jika tidak cocok
+            Dictionary dengan data user dan similarity, atau None jika tidak cocok
             Format: {
-                'id_anggota': '...',
-                'nama': '...',
-                'divisi': '...',
+                'user_id': '...',
+                'name': '...',
+                'email': '...',
                 'similarity': 0.95
             }
         """
         try:
-            # Import models di dalam method untuk menghindari circular import
-            from models import Anggota, VektorWajah
+            # Import models dari database SILAB
+            from models import Users, VektorWajah
             
             # Ambil semua vektor wajah dari database
             vektor_list = db_session.query(VektorWajah).all()
@@ -197,10 +197,11 @@ class FaceRecognitionService:
                     else:
                         embedding_array = np.array(vektor.vektor)
                     
-                    stored_embeddings.append((vektor.id_anggota, embedding_array))
-                    print(f"✓ Loaded embedding for {vektor.id_anggota} (shape: {embedding_array.shape})")
+                    # Gunakan user_id bukan id_anggota
+                    stored_embeddings.append((vektor.user_id, embedding_array))
+                    print(f"✓ Loaded embedding for user {vektor.user_id} (shape: {embedding_array.shape})")
                 except Exception as e:
-                    print(f"✗ Error processing embedding for {vektor.id_anggota}: {str(e)}")
+                    print(f"✗ Error processing embedding for user {vektor.user_id}: {str(e)}")
                     continue
             
             if not stored_embeddings:
@@ -210,29 +211,29 @@ class FaceRecognitionService:
             print(f"Total valid embeddings: {len(stored_embeddings)}")
             
             # Gunakan method find_best_match yang sudah ada
-            best_id_anggota, similarity = self.find_best_match(
+            best_user_id, similarity = self.find_best_match(
                 test_embedding, 
                 stored_embeddings, 
                 threshold
             )
             
-            if not best_id_anggota:
+            if not best_user_id:
                 print(f"No match found (best similarity: {similarity:.3f}, threshold: {threshold})")
                 return None
             
-            print(f"✓ Best match: {best_id_anggota} (similarity: {similarity:.3f})")
+            print(f"✓ Best match: User {best_user_id} (similarity: {similarity:.3f})")
             
-            # Ambil data anggota
-            anggota = db_session.query(Anggota).filter_by(id_anggota=best_id_anggota).first()
+            # Ambil data user dari tabel Users (bukan Anggota)
+            user = db_session.query(Users).filter_by(id=best_user_id).first()
             
-            if not anggota:
-                print(f"Anggota {best_id_anggota} not found in database")
+            if not user:
+                print(f"User {best_user_id} not found in database")
                 return None
             
             return {
-                'id_anggota': anggota.id_anggota,
-                'nama': anggota.nama,
-                'divisi': anggota.divisi,
+                'user_id': user.id,
+                'name': user.name,
+                'email': user.email,
                 'similarity': float(similarity)
             }
             

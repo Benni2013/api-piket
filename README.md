@@ -1,739 +1,709 @@
-# API Absensi Piket Lab - Face Recognition System
+# API Piket - Face Recognition & Attendance System
 
-API RESTful untuk sistem absensi piket laboratorium menggunakan teknologi Face Recognition dengan FaceNet. Sistem ini dilengkapi dengan autentikasi JWT, multiple photo capture, dan real-time face verification.
+API untuk sistem absensi piket menggunakan face recognition dengan FaceNet, terintegrasi dengan database SILAB dari Laravel.
+
+## 📋 Deskripsi
+
+API Piket adalah REST API yang menyediakan layanan:
+1. **Face Recognition** - Pengenalan wajah menggunakan FaceNet (512-dimensional embeddings)
+2. **Face Vector Management** - Insert & Update vektor wajah dari kamera atau upload foto
+3. **Attendance System** - Absensi piket dengan verification wajah real-time
 
 ## 🎯 Fitur Utama
 
-### Autentikasi & Keamanan
-- ✅ **JWT Authentication** - Token-based security dengan expiry 1 jam
-- ✅ **Password Hashing** - Bcrypt encryption untuk keamanan password
-- ✅ **Face Recognition Login** - Login menggunakan wajah + password
+### 6 Endpoint Layanan:
 
-### Manajemen Anggota
-- ✅ **Insert Anggota** - Daftar anggota baru dengan 20 foto wajah
-- ✅ **Update Face Vectors** - Perbarui embedding wajah (20 foto)
-- ✅ **Face Recognition** - Dry run testing untuk debugging
-
-### Absensi Piket
-- ✅ **Mulai Piket** - Real-time face recognition (1 foto)
-- ✅ **Akhiri Piket** - Real-time verification dengan input kegiatan
-- ✅ **Durasi Otomatis** - Perhitungan durasi piket otomatis
-- ✅ **Riwayat Absensi** - Filter berdasarkan tanggal, anggota, dan status
+1. **Health Check** - Cek status API dan database
+2. **Insert Face Vectors (Camera)** - Tambah vektor wajah dengan 20 foto dari streaming kamera
+3. **Update Face Vectors** - Update vektor wajah dengan 20 foto baru
+4. **Mulai Piket** - Absensi mulai piket dengan face recognition (1 foto)
+5. **Akhiri Piket** - Absensi akhir piket dengan verifikasi wajah + input kegiatan (1 foto)
+6. **Insert Face Vector (Photo)** - Tambah 1 vektor wajah dari upload foto
 
 ## 🛠️ Teknologi
 
-| Komponen | Teknologi | Versi |
-|----------|-----------|-------|
-| Framework | Flask | 3.0+ |
-| Face Recognition | FaceNet (keras-facenet) | 0.3.2 |
-| Deep Learning | TensorFlow | 2.15+ |
-| Computer Vision | OpenCV | 4.9+ |
-| Database | MySQL | 8.0+ |
-| ORM | SQLAlchemy | 3.1+ |
-| Authentication | PyJWT | 2.8+ |
-| Password Hashing | bcrypt | 4.1+ |
+- **Framework**: Flask 3.0+
+- **Database**: MySQL 8.0+ (Database SILAB)
+- **Face Recognition**: FaceNet (keras-facenet 0.3.2)
+- **Computer Vision**: OpenCV 4.9+
+- **Deep Learning**: TensorFlow 2.15+
+- **ORM**: Flask-SQLAlchemy 3.1+
 
-## 📋 Struktur Database
+## 📦 Instalasi
 
-### Tabel: `anggota`
-```sql
-CREATE TABLE anggota (
-    id_anggota VARCHAR(20) PRIMARY KEY,
-    nama VARCHAR(100) NOT NULL,
-    divisi VARCHAR(50),
-    no_hp VARCHAR(15),
-    password VARCHAR(255) NOT NULL,
-    path_wajah VARCHAR(255),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-```
-
-### Tabel: `vektor_wajah`
-```sql
-CREATE TABLE vektor_wajah (
-    id_vektor_wajah INT PRIMARY KEY AUTO_INCREMENT,
-    id_anggota VARCHAR(20) NOT NULL,
-    vektor JSON NOT NULL,  -- 512-dimensional FaceNet embedding
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_anggota) REFERENCES anggota(id_anggota) 
-        ON UPDATE CASCADE ON DELETE CASCADE
-);
-```
-
-### Tabel: `absensi`
-```sql
-CREATE TABLE absensi (
-    id CHAR(36) PRIMARY KEY,  -- UUID
-    id_anggota VARCHAR(20) NOT NULL,
-    tanggal DATE NOT NULL,
-    jam_masuk TIME NOT NULL,
-    jam_keluar TIME,
-    foto VARCHAR(255),
-    kegiatan TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_anggota) REFERENCES anggota(id_anggota)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    UNIQUE KEY unique_attendance_per_day (id_anggota, tanggal)
-);
-```
-
-**Catatan Penting:**
-- Model lama `absen_piket` sudah **DEPRECATED**
-- Gunakan tabel `absensi` untuk semua operasi baru
-- DDL lengkap tersedia di `database_absensi_ddl.sql`
-
-## 🚀 Instalasi
-
-### 1. Prerequisites
-- Python 3.8 atau lebih tinggi
-- MySQL 8.0 atau lebih tinggi
-- Git (optional)
-
-### 2. Clone atau Download Project
+### 1. Clone Repository
 
 ```bash
-git clone https://github.com/Benni2013/api-piket.git
-cd api-piket/api-piket
+git clone <repository-url>
+cd api-piket
 ```
 
-### 3. Buat Virtual Environment
+### 2. Setup Python Environment
 
-**Windows PowerShell:**
-```powershell
+```bash
+# Buat virtual environment
 python -m venv venv
-.\venv\Scripts\Activate.ps1
-```
 
-**Linux/Mac:**
-```bash
-python3 -m venv venv
+# Aktivasi virtual environment
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
 source venv/bin/activate
-```
 
-### 4. Install Dependencies
-
-```powershell
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-**Dependencies yang akan terinstall:**
-- Flask 3.0.3
-- keras-facenet 0.3.2
-- TensorFlow 2.15.0
-- OpenCV-Python 4.9.0.80
-- PyMySQL 1.1.1
-- SQLAlchemy 3.1.1
-- PyJWT 2.8.0
-- bcrypt 4.1.3
-- Flask-CORS 4.0.1
+### 3. Setup Database
 
-### 5. Setup Database
+#### 3.1 Import Database SILAB
 
-**Buat database:**
-```sql
-CREATE DATABASE api_piket CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-**Import struktur database:**
 ```bash
-mysql -u root -p api_piket < database_absensi_ddl.sql
+# Buat database silab
+mysql -u root -p -e "CREATE DATABASE silab;"
+
+# Import struktur database
+mysql -u root -p silab < silab.sql
 ```
 
-### 6. Konfigurasi Environment
+#### 3.2 Buat Tabel vektor_wajah
 
-Copy file `.env.example` ke `.env`:
-```powershell
+```sql
+-- Login ke MySQL
+mysql -u root -p silab
+
+-- Buat tabel vektor_wajah
+CREATE TABLE vektor_wajah (
+    id_vektor_wajah INT PRIMARY KEY AUTO_INCREMENT,
+    user_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+    vektor JSON NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### 4. Konfigurasi Environment
+
+```bash
+# Copy .env.example ke .env
 copy .env.example .env
+
+# Edit file .env
+notepad .env
 ```
 
-Edit file `.env`:
+Isi file `.env`:
+
 ```env
 # Database Configuration
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=your_mysql_password
-DB_NAME=api_piket
+DB_NAME=silab
 
 # Flask Configuration
 FLASK_ENV=development
-SECRET_KEY=your-secret-key-change-in-production
-PORT=5000
+SECRET_KEY=your-secret-key-here
 
-# JWT Configuration (optional, defaults in app.py)
-JWT_SECRET_KEY=your-jwt-secret-key
-JWT_EXPIRATION=3600
-
-# Face Recognition Configuration
-FACE_THRESHOLD=0.7
+# Face Recognition
+SIMILARITY_THRESHOLD=0.7
+MAX_IMAGES_PER_PERSON=20
 
 # Upload Configuration
 UPLOAD_FOLDER=data/wajah
-
-# CORS Configuration
-CORS_ORIGINS=http://localhost:8000,http://localhost:3000
 ```
 
-### 7. Jalankan Aplikasi
+### 5. Jalankan Aplikasi
 
-```powershell
+```bash
+# Development mode
 python app.py
+
+# Production mode (gunakan gunicorn)
+gunicorn -w 4 -b 0.0.0.0:5000 app:app
 ```
 
-API akan berjalan di: **http://localhost:5000**
+API akan berjalan di: **`http://localhost:5000`**
 
-Cek health status:
-```powershell
-curl http://localhost:5000/health
-```
+## 📚 Dokumentasi API
 
-## 📚 API Documentation
+### Endpoint 1: Health Check
 
-### Base URL
-```
-http://localhost:5000
-```
+**GET** `/health`
 
-### Authentication
-Sebagian besar endpoint membutuhkan JWT token di header:
-```
-Authorization: Bearer <your_jwt_token>
-```
+Mengecek status API dan koneksi database.
 
----
-
-## 🔐 1. Authentication Endpoints
-
-### 1.1 Login dengan Face Recognition
-
-**POST** `/api/auth/login`
-
-**Request Body:**
+**Response:**
 ```json
 {
-    "image": "data:image/jpeg;base64,/9j/4AAQ..."
-}
-```
-
-**Response (Success):**
-```json
-{
-    "success": true,
-    "message": "Login berhasil! Selamat datang, Benni",
-    "token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-    "data": {
-        "id_anggota": "RDBI.I.01",
-        "nama": "Benni",
-        "divisi": "Web Development",
-        "similarity": 0.952
-    }
-}
-```
-
-**Response (Failed):**
-```json
-{
-    "success": false,
-    "message": "Wajah tidak dikenali. Pastikan Anda sudah terdaftar."
+  "status": "ok",
+  "message": "API Piket is running",
+  "database": "connected",
+  "timestamp": "2025-11-27T10:00:00",
+  "version": "3.0"
 }
 ```
 
 ---
 
-## 👥 2. Face Management Endpoints
-
-### 2.1 Insert Anggota Baru (20 Foto)
+### Endpoint 2: Insert Face Vectors (Camera)
 
 **POST** `/api/face/insert`
 
-**Auth:** None required
+Insert vektor wajah user dengan multiple images dari streaming kamera (max 20 foto).
 
 **Request Body:**
 ```json
 {
-    "id_anggota": "RDBI.I.01",
-    "nama": "Benni",
-    "divisi": "Web Development",
-    "no_hp": "081234567890",
-    "password": "password123",
-    "images": [
-        "data:image/jpeg;base64,/9j/4AAQ...",
-        "data:image/jpeg;base64,/9j/4AAQ...",
-        "... (18 more images)"
-    ]
+  "user_id": "uuid-string",
+  "images": [
+    "data:image/jpeg;base64,/9j/4AAQSkZJRg...",
+    "data:image/jpeg;base64,/9j/4AAQSkZJRg...",
+    "... (max 20 images)"
+  ]
 }
 ```
 
-**Response:**
+**Response Success (201):**
 ```json
 {
-    "success": true,
-    "message": "Anggota Benni berhasil ditambahkan!",
-    "data": {
-        "id_anggota": "RDBI.I.01",
-        "nama": "Benni",
-        "divisi": "Web Development",
-        "vectors_count": 20,
-        "path_wajah": "data/wajah/RDBI.I.01_Benni"
-    }
+  "success": true,
+  "message": "Successfully saved 20 face vectors for John Doe",
+  "data": {
+    "user_id": "uuid-string",
+    "name": "John Doe",
+    "total_images_processed": 20,
+    "embeddings_saved": 20,
+    "errors": null
+  }
 }
 ```
 
-### 2.2 Update Face Vectors (20 Foto)
-
-**PUT** `/api/face/update/<id_anggota>`
-
-**Auth:** Required (Bearer Token)
-
-**Request Body:**
+**Response Error (400/404/409):**
 ```json
 {
-    "images": [
-        "data:image/jpeg;base64,/9j/4AAQ...",
-        "... (19 more images)"
-    ]
-}
-```
-
-### 2.3 Face Recognition (Dry Run)
-
-**POST** `/api/face/recognize`
-
-**Auth:** Required
-
-**Request Body:**
-```json
-{
-    "image": "data:image/jpeg;base64,/9j/4AAQ..."
-}
-```
-
-**Response:**
-```json
-{
-    "success": true,
-    "match": true,
-    "data": {
-        "id_anggota": "RDBI.I.01",
-        "nama": "Benni",
-        "similarity": 0.945
-    }
-}
-```
-
----
-
-## ⏰ 3. Piket Operations
-
-### 3.1 Mulai Piket (Real-time, 1 Foto)
-
-**POST** `/api/piket/mulai`
-
-**Auth:** Required
-
-**Request Body:**
-```json
-{
-    "image": "data:image/jpeg;base64,/9j/4AAQ..."
-}
-```
-
-**Response:**
-```json
-{
-    "success": true,
-    "message": "Piket dimulai! Selamat datang, Benni",
-    "data": {
-        "id": "550e8400-e29b-41d4-a716-446655440000",
-        "id_anggota": "RDBI.I.01",
-        "nama": "Benni",
-        "divisi": "Web Development",
-        "tanggal": "2025-11-04",
-        "jam_masuk": "08:30:15"
-    }
+  "success": false,
+  "message": "Error message",
+  "errors": ["Image 1: No face detected", "..."]
 }
 ```
 
 **Catatan:**
-- Hanya bisa 1x per hari per anggota
-- Wajah harus sesuai dengan akun login
+- User harus sudah terdaftar di database SILAB (tabel `users`)
+- Setiap user hanya bisa insert sekali, gunakan endpoint update untuk menambah/ubah vektor
+- Minimal 1 foto, maksimal 20 foto
+- Sistem akan auto-detect face di setiap foto
+- Foto yang tidak terdeteksi wajahnya akan di-skip
 
-### 3.2 Akhiri Piket (Real-time, 1 Foto)
+---
 
-**POST** `/api/piket/akhiri`
+### Endpoint 3: Update Face Vectors
 
-**Auth:** Required
+**PUT** `/api/face/update/<user_id>`
+
+Update vektor wajah user dengan multiple images baru (max 20 foto). Vektor lama akan dihapus dan diganti dengan yang baru.
+
+**URL Parameter:**
+- `user_id` (string, required): UUID dari user
 
 **Request Body:**
 ```json
 {
-    "kegiatan": "Maintenance server, update dokumentasi, development fitur baru",
-    "image": "data:image/jpeg;base64,/9j/4AAQ..."
+  "images": [
+    "data:image/jpeg;base64,/9j/4AAQSkZJRg...",
+    "data:image/jpeg;base64,/9j/4AAQSkZJRg...",
+    "... (max 20 images)"
+  ]
 }
 ```
 
-**Response:**
+**Response Success (200):**
 ```json
 {
-    "success": true,
-    "message": "Piket selesai! Terima kasih, Benni",
-    "data": {
-        "id": "550e8400-e29b-41d4-a716-446655440000",
-        "id_anggota": "RDBI.I.01",
-        "nama": "Benni",
-        "tanggal": "2025-11-04",
-        "jam_masuk": "08:30:15",
-        "jam_keluar": "16:45:30",
-        "durasi": "8 jam 15 menit",
-        "kegiatan": "Maintenance server, update dokumentasi..."
-    }
+  "success": true,
+  "message": "Successfully updated face vectors for John Doe",
+  "data": {
+    "user_id": "uuid-string",
+    "name": "John Doe",
+    "old_vectors_count": 20,
+    "new_vectors_count": 20,
+    "total_images_processed": 20,
+    "errors": null
+  }
 }
 ```
 
 ---
 
-## 📊 4. Data Retrieval Endpoints
+### Endpoint 4: Mulai Piket
 
-### 4.1 Get All Anggota
+**POST** `/api/piket/mulai`
 
-**GET** `/api/anggota`
+Mulai piket dengan face recognition real-time (1 foto).
 
-**Auth:** Required
-
-**Query Parameters:**
-- `id_anggota` (optional): Filter by ID
-- `divisi` (optional): Filter by divisi
-
-**Response:**
+**Request Body:**
 ```json
 {
-    "success": true,
-    "data": [
-        {
-            "id_anggota": "RDBI.I.01",
-            "nama": "Benni",
-            "divisi": "Web Development",
-            "no_hp": "081234567890",
-            "path_wajah": "data/wajah/RDBI.I.01_Benni",
-            "created_at": "2025-11-04T08:00:00",
-            "updated_at": "2025-11-04T08:00:00"
-        }
-    ],
-    "count": 1
+  "image": "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
 }
 ```
 
-### 4.2 Get Absensi
-
-**GET** `/api/absensi`
-
-**Auth:** Required
-
-**Query Parameters:**
-- `tanggal` (optional, default: today): Format YYYY-MM-DD
-- `id_anggota` (optional): Filter by ID
-- `status` (optional): "aktif" atau "selesai"
-
-**Response:**
+**Response Success (201):**
 ```json
 {
-    "success": true,
-    "data": [
-        {
-            "id": "550e8400-e29b-41d4-a716-446655440000",
-            "id_anggota": "RDBI.I.01",
-            "nama": "Benni",
-            "divisi": "Web Development",
-            "tanggal": "2025-11-04",
-            "jam_masuk": "08:30:15",
-            "jam_keluar": "16:45:30",
-            "durasi": "8 jam 15 menit",
-            "foto": "data/wajah/RDBI.I.01_Benni/20251104_083015.jpg",
-            "kegiatan": "Maintenance server...",
-            "created_at": "2025-11-04T08:30:15",
-            "updated_at": "2025-11-04T16:45:30"
-        }
-    ],
-    "count": 1,
-    "tanggal": "2025-11-04"
+  "success": true,
+  "message": "Piket dimulai untuk John Doe",
+  "data": {
+    "id": "uuid-absensi",
+    "user_id": "uuid-user",
+    "name": "John Doe",
+    "tanggal": "2025-11-27",
+    "jam_masuk": "08:00:00",
+    "jam_keluar": null,
+    "kegiatan": "",
+    "foto": "",
+    "jadwal_piket": "uuid-jadwal",
+    "periode_piket_id": "uuid-periode",
+    "similarity": 0.95,
+    "created_at": "2025-11-27T08:00:00",
+    "updated_at": "2025-11-27T08:00:00"
+  }
 }
 ```
 
-**Filter Examples:**
+**Response Error:**
+```json
+{
+  "success": false,
+  "message": "Face not recognized. Please register first."
+}
+```
+
+**Response Error (No Schedule):**
+```json
+{
+  "success": false,
+  "message": "John Doe tidak memiliki jadwal piket"
+}
+```
+
+**Response Error (Already Started):**
+```json
+{
+  "success": false,
+  "message": "John Doe sudah mulai piket hari ini"
+}
+```
+
+**Catatan:**
+- Wajah harus sudah terdaftar (ada vektor wajah di database)
+- User harus memiliki jadwal piket (`jadwal_piket` table)
+- Similarity threshold default: 0.7 (bisa diubah di `.env`)
+- Hanya bisa mulai piket 1x per hari per jadwal
+- Memerlukan periode piket aktif (`isactive=1`)
+- Field `foto` dan `kegiatan` akan diisi string kosong saat mulai piket
+
+---
+
+### Endpoint 5: Akhiri Piket
+
+**POST** `/api/piket/akhiri`
+
+Akhiri piket dengan face verification dan input kegiatan (1 foto).
+
+**Request Body:**
+```json
+{
+  "image": "data:image/jpeg;base64,/9j/4AAQSkZJRg...",
+  "kegiatan": "Membersihkan lab, mengecek komputer, update inventaris"
+}
+```
+
+**Response Success (200):**
+```json
+{
+  "success": true,
+  "message": "Piket selesai untuk John Doe",
+  "data": {
+    "id": "uuid-absensi",
+    "user_id": "uuid-user",
+    "name": "John Doe",
+    "tanggal": "2025-11-27",
+    "jam_masuk": "08:00:00",
+    "jam_keluar": "12:00:00",
+    "durasi": "4 jam 0 menit",
+    "kegiatan": "Membersihkan lab, mengecek komputer, update inventaris",
+    "similarity": 0.96,
+    "created_at": "2025-11-27T08:00:00",
+    "updated_at": "2025-11-27T12:00:00"
+  }
+}
+```
+
+**Response Error:**
+```json
+{
+  "success": false,
+  "message": "John Doe belum mulai piket hari ini"
+}
+```
+
+**Response Error (No Schedule):**
+```json
+{
+  "success": false,
+  "message": "John Doe tidak memiliki jadwal piket"
+}
+```
+
+**Response Error (Already Ended):**
+```json
+{
+  "success": false,
+  "message": "John Doe sudah mengakhiri piket hari ini"
+}
+```
+
+**Catatan:**
+- Harus sudah mulai piket terlebih dahulu (ada record absensi hari ini)
+- User harus memiliki jadwal piket
+- Kegiatan wajib diisi
+- Hanya bisa akhiri piket 1x per hari per jadwal
+
+---
+
+### Endpoint 6: Insert Face Vector (Photo)
+
+**POST** `/api/face/insert-from-photo`
+
+Buat dan tambah 1 vektor wajah dari upload foto (bukan streaming kamera).
+
+**Request Body:**
+```json
+{
+  "user_id": "uuid-string",
+  "image": "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
+}
+```
+
+**Response Success (201):**
+```json
+{
+  "success": true,
+  "message": "Face vector saved successfully for John Doe",
+  "data": {
+    "user_id": "uuid-string",
+    "name": "John Doe",
+    "vector_id": 123,
+    "total_vectors": 5
+  }
+}
+```
+
+**Catatan:**
+- Endpoint ini untuk menambahkan vektor satu per satu
+- Cocok untuk upload foto manual, bukan streaming kamera
+- Tidak ada limit jumlah vektor per user (tapi recommended max 20)
+- Bisa digunakan untuk melengkapi vektor yang sudah ada
+
+---
+
+## 🔄 Flow Penggunaan
+
+### Scenario 1: Registrasi Face Vector (Streaming Kamera)
+
+```
+1. User terdaftar di SILAB (tabel users)
+2. Web app capture 20 foto secara otomatis
+3. POST /api/face/insert dengan 20 images
+4. API extract embedding dari setiap foto
+5. Simpan 20 vektor wajah ke database
+```
+
+### Scenario 2: Absensi Piket
+
+```
+1. User foto diri dengan kamera (1 foto)
+2. POST /api/piket/mulai dengan 1 image
+3. API extract embedding dan matching dengan database
+4. Jika cocok, create record absensi dengan jam_masuk
+5. ...user melakukan piket...
+6. User foto diri lagi (1 foto)
+7. POST /api/piket/akhiri dengan 1 image + kegiatan
+8. API verifikasi wajah dan update jam_keluar
+```
+
+### Scenario 3: Update Face Vector
+
+```
+1. User ingin update foto (misal: ganti kacamata, gaya rambut)
+2. Web app capture 20 foto baru
+3. PUT /api/face/update/<user_id> dengan 20 images
+4. API hapus vektor lama dan simpan vektor baru
+```
+
+---
+
+## 🧪 Testing dengan cURL
+
+### 1. Health Check
+
 ```bash
-# Today's attendance
-GET /api/absensi
+curl http://localhost:5000/health
+```
 
-# Specific date
-GET /api/absensi?tanggal=2025-11-04
+### 2. Insert Face Vectors
 
-# By member
-GET /api/absensi?id_anggota=RDBI.I.01
+```bash
+curl -X POST http://localhost:5000/api/face/insert \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "your-user-uuid",
+    "images": ["data:image/jpeg;base64,...", "..."]
+  }'
+```
 
-# Active piket (not finished yet)
-GET /api/absensi?status=aktif
+### 3. Mulai Piket
 
-# Completed piket
-GET /api/absensi?status=selesai
+```bash
+curl -X POST http://localhost:5000/api/piket/mulai \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image": "data:image/jpeg;base64,..."
+  }'
+```
+
+### 4. Akhiri Piket
+
+```bash
+curl -X POST http://localhost:5000/api/piket/akhiri \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image": "data:image/jpeg;base64,...",
+    "kegiatan": "Membersihkan lab"
+  }'
 ```
 
 ---
 
-## 🔧 Utility Tools
+## 🗂️ Struktur Database
 
-### 1. `image_to_base64.py` - Image Converter
+### Tabel yang Digunakan:
 
-Tool untuk convert image ke base64 string (berguna untuk testing).
-
-**Usage:**
-```powershell
-# Interactive mode
-python image_to_base64.py
-
-# Command line mode
-python image_to_base64.py foto.jpg
-
-# Save to file
-python image_to_base64.py foto.jpg output.txt
+#### 1. **users** (dari SILAB - Read Only)
+```sql
+- id (CHAR(36) PRIMARY KEY) - UUID
+- name (VARCHAR(255))
+- email (VARCHAR(255))
+- password (VARCHAR(255))
+- created_at, updated_at (TIMESTAMP)
 ```
 
-**Fitur:**
-- Convert JPG, PNG, GIF ke base64
-- Include data URI header otomatis
-- Save to file atau copy to clipboard
-- Preview output
+#### 2. **profile** (dari SILAB - Read Only)
+```sql
+- id (CHAR(36) PRIMARY KEY) - UUID
+- user_id (CHAR(36) FOREIGN KEY -> users.id)
+- npm (VARCHAR(255))
+- foto_wajah (VARCHAR(255))
+- created_at, updated_at (TIMESTAMP)
+```
 
-### 2. Postman Collection
+#### 3. **vektor_wajah** (Dikelola oleh API Piket)
+```sql
+- id_vektor_wajah (INT PRIMARY KEY AUTO_INCREMENT)
+- user_id (CHAR(36) FOREIGN KEY -> users.id)
+- vektor (JSON) - 512-dimensional array
+- created_at, updated_at (TIMESTAMP)
+```
 
-File: `API_Absen_Piket.postman_collection.json`
+#### 4. **jadwal_piket** (dari SILAB - Read Only)
+```sql
+- id (CHAR(36) PRIMARY KEY) - UUID
+- user_id (CHAR(36) FOREIGN KEY -> users.id)
+- hari (VARCHAR(255))
+- kepengurusan_lab_id (CHAR(36)) - Relasi ke kepengurusan_lab
+- created_at, updated_at (TIMESTAMP)
+```
 
-**⚠️ Catatan:** Jika tidak menggunakan Postman, file ini **boleh dihapus**.
+#### 5. **periode_piket** (dari SILAB - Read Only)
+```sql
+- id (CHAR(36) PRIMARY KEY) - UUID
+- kepengurusan_lab_id (CHAR(36)) - Relasi ke kepengurusan_lab
+- nama (VARCHAR(255))
+- tanggal_mulai, tanggal_selesai (DATE)
+- isactive (BOOLEAN)
+- created_at, updated_at (TIMESTAMP)
+```
 
-Untuk import di Postman:
-1. Buka Postman
-2. Click Import
-3. Select file `API_Absen_Piket.postman_collection.json`
-4. Set environment variable `base_url` = `http://localhost:5000`
+#### 6. **absensi** (Dikelola oleh API Piket)
+```sql
+- id (CHAR(36) PRIMARY KEY) - UUID
+- tanggal (DATE)
+- jam_masuk, jam_keluar (TIME)
+- foto (VARCHAR(255)) - string kosong saat mulai, bisa diisi saat akhiri
+- jadwal_piket (CHAR(36) FOREIGN KEY -> jadwal_piket.id)
+- kegiatan (TEXT) - string kosong saat mulai, wajib diisi saat akhiri
+- periode_piket_id (CHAR(36) FOREIGN KEY -> periode_piket.id)
+- created_at, updated_at (TIMESTAMP)
+
+CATATAN: Tabel absensi TIDAK memiliki kolom user_id.
+User diakses melalui relasi: absensi -> jadwal_piket -> user
+```
 
 ---
 
-## ⚙️ Konfigurasi Lanjutan
+## ⚙️ Konfigurasi
 
-### Face Recognition Threshold
+### Environment Variables (.env)
 
-Default threshold: **0.7** (70% similarity)
-
-Untuk mengubah, edit di method call:
-```python
-result = face_service.find_best_match_from_db(
-    embedding, 
-    db.session, 
-    threshold=0.6  # Lower = more permissive
-)
-```
-
-**Rekomendasi:**
-- `0.7` - Standar (balanced)
-- `0.6` - Lebih permisif (untuk lighting/angle yang berbeda)
-- `0.8` - Lebih strict (untuk keamanan tinggi)
-
-### Upload Folder Structure
-
-```
-data/
-└── wajah/
-    ├── RDBI.I.01_Benni/
-    │   ├── 20251104_083015_1.jpg
-    │   ├── 20251104_083015_2.jpg
-    │   └── ... (18 more)
-    └── tes1_tes/
-        └── ... (20 images)
-```
-
-### CORS Configuration
-
-Edit di `app.py`:
-```python
-CORS(app, resources={
-    r"/*": {
-        "origins": ["http://localhost:8000", "https://yourdomain.com"]
-    }
-})
-```
+| Variable | Default | Deskripsi |
+|----------|---------|-----------|
+| `DB_HOST` | localhost | Host database MySQL |
+| `DB_PORT` | 3306 | Port database MySQL |
+| `DB_USER` | root | Username database |
+| `DB_PASSWORD` | - | Password database |
+| `DB_NAME` | silab | Nama database |
+| `FLASK_ENV` | development | Environment Flask (development/production) |
+| `SECRET_KEY` | - | Secret key untuk Flask session |
+| `SIMILARITY_THRESHOLD` | 0.7 | Threshold untuk face matching (0.0-1.0) |
+| `MAX_IMAGES_PER_PERSON` | 20 | Maksimal foto per user |
+| `UPLOAD_FOLDER` | data/wajah | Folder untuk simpan foto (opsional) |
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Database Connection Error
-```
-sqlalchemy.exc.OperationalError: (2003, "Can't connect to MySQL server")
-```
+### Problem 1: Database connection error
 
 **Solusi:**
-1. Pastikan MySQL service running
-2. Cek kredensial di `.env`
-3. Verify database sudah dibuat: `CREATE DATABASE api_piket;`
+```bash
+# Cek MySQL service
+net start | findstr MySQL
 
-### Face Not Detected
+# Test koneksi
+mysql -u root -p silab -e "SELECT 1"
+
+# Cek credentials di .env
 ```
-{"success": false, "message": "Wajah tidak terdeteksi"}
-```
+
+### Problem 2: No face detected
 
 **Solusi:**
-1. Pastikan pencahayaan cukup
-2. Wajah harus menghadap kamera langsung
-3. Gunakan resolusi minimal 640x480
-4. Hindari kacamata/masker
+- Pastikan pencahayaan cukup
+- Wajah menghadap kamera (frontal)
+- Jarak 30-50cm dari kamera
+- Tidak ada halangan (masker, kacamata hitam, topi)
 
-### No Match Found
-```
-{"success": false, "message": "Wajah tidak dikenali"}
-```
+### Problem 3: Face not recognized (similarity terlalu rendah)
 
 **Solusi:**
-1. Cek data embedding di database: `SELECT COUNT(*) FROM vektor_wajah;`
-2. Pastikan sudah insert/update dengan 20 foto
-3. Coba turunkan threshold dari 0.7 ke 0.6
-4. Lihat log Flask untuk similarity score
+- Tambah lebih banyak foto saat insert (gunakan 20 foto)
+- Gunakan foto dengan variasi angle/expresi
+- Lower threshold di `.env`: `SIMILARITY_THRESHOLD=0.6`
+- Update vektor wajah dengan foto baru yang lebih jelas
 
-### Import Error
-```
-ModuleNotFoundError: No module named 'keras_facenet'
-```
+### Problem 4: Tidak ada periode piket aktif
 
 **Solusi:**
-```powershell
-pip install -r requirements.txt
+```sql
+-- Aktifkan periode piket
+UPDATE periode_piket 
+SET isactive = 1 
+WHERE tanggal_mulai <= CURDATE() 
+  AND tanggal_selesai >= CURDATE();
+
+-- Atau buat periode baru
+INSERT INTO periode_piket (id, kepengurusan_lab_id, nama, tanggal_mulai, tanggal_selesai, isactive, created_at, updated_at)
+VALUES (UUID(), 'your-kepengurusan-id', 'Testing Nov 2025', '2025-11-01', '2025-11-30', 1, NOW(), NOW());
 ```
 
-### JWT Token Expired
-```
-{"success": false, "message": "Token expired"}
-```
+### Problem 5: Error "Unknown column 'absensi.user_id'"
+
+**Penyebab:** 
+Tabel `absensi` tidak memiliki kolom `user_id`. User diakses melalui relasi `jadwal_piket`.
 
 **Solusi:**
-- Token berlaku 1 jam, login ulang untuk mendapat token baru
+- Pastikan API menggunakan versi terbaru (sudah fixed di v3.0)
+- Restart API server setelah update
+- Clear `__pycache__` folders
+- Verifikasi struktur tabel: `DESCRIBE absensi;` (seharusnya tidak ada kolom `user_id`)
 
----
+### Problem 6: Error "tidak memiliki jadwal piket"
 
-## 📁 Struktur Project
+**Penyebab:**
+User yang recognized tidak memiliki jadwal piket di database.
 
-```
-api-piket/
-├── app.py                          # Main Flask application
-├── config.py                       # Database & Flask config
-├── models.py                       # SQLAlchemy ORM models
-├── face_recognition.py             # FaceNet service
-├── requirements.txt                # Python dependencies
-├── .env                           # Environment variables (gitignored)
-├── .env.example                   # Environment template
-├── .gitignore                     # Git ignore rules
-├── README.md                      # This file
-├── database_absensi_ddl.sql       # Database schema
-├── image_to_base64.py             # Utility: Image converter
-├── API_Absen_Piket.postman_collection.json  # Postman tests (optional)
-├── __pycache__/                   # Python cache (gitignored)
-└── data/
-    └── wajah/                     # Face images storage
-        ├── RDBI.I.01_Benni/
-        └── tes1_tes/
+**Solusi:**
+```sql
+-- Check jadwal user
+SELECT * FROM jadwal_piket WHERE user_id = 'your-user-uuid';
+
+-- Jika tidak ada, tambahkan jadwal
+INSERT INTO jadwal_piket (id, user_id, hari, kepengurusan_lab_id, created_at, updated_at)
+VALUES (UUID(), 'your-user-uuid', 'Senin', 'your-kepengurusan-id', NOW(), NOW());
 ```
 
 ---
 
-## 🔒 Security Best Practices
+## 📝 Notes
 
-1. **Ganti Secret Keys**
-   - Ubah `SECRET_KEY` dan `JWT_SECRET_KEY` di production
-   - Gunakan random string minimal 32 karakter
+### Face Recognition Algorithm
 
-2. **Database Credentials**
-   - Jangan commit file `.env` ke Git
-   - Gunakan user database dengan privilege terbatas
+- **Model**: FaceNet (Inception ResNet v1)
+- **Embedding Size**: 512 dimensions
+- **Similarity Metric**: Cosine Similarity
+- **Threshold**: 0.7 (70% kecocokan)
+- **Face Detection**: Haar Cascade Classifier (OpenCV)
 
-3. **Password Policy**
-   - Minimal 8 karakter
-   - Password di-hash dengan bcrypt (cost factor 12)
+### Best Practices
 
-4. **CORS Configuration**
-   - Hanya izinkan domain yang dipercaya
-   - Hindari wildcard `*` di production
+1. **Insert Face Vectors**: Gunakan 15-20 foto untuk akurasi terbaik
+2. **Photo Quality**: Resolusi minimal 640x480, pencahayaan baik
+3. **Face Angle**: Frontal face dengan variasi angle ringan (±15°)
+4. **Update Frequency**: Update vektor wajah setiap 6 bulan atau saat perubahan signifikan (rambut, kacamata, dll)
+5. **Threshold Tuning**: Adjust `SIMILARITY_THRESHOLD` berdasarkan testing
 
-5. **File Upload**
-   - Validasi file type (hanya JPG, PNG)
-   - Limit file size (max 10MB per image)
+### Security Notes
 
----
-
-## 📊 Performance Tips
-
-1. **Database Indexing**
-   - Index sudah ada di: `id_anggota`, `tanggal`
-   - Monitor slow query dengan `EXPLAIN`
-
-2. **Face Recognition**
-   - Batch processing untuk multiple images
-   - Cache embeddings di memory (optional)
-
-3. **Image Storage**
-   - Compress images sebelum save (quality 85%)
-   - Pertimbangkan CDN untuk production
-
----
-
-## 📝 Changelog
-
-### Version 2.0.0 (2025-11-04)
-- ✅ JWT Authentication system
-- ✅ New database structure (`absensi` table)
-- ✅ Password hashing with bcrypt
-- ✅ Durasi calculation automatic
-- ✅ Status filter (aktif/selesai)
-- ⚠️ Deprecated `absen_piket` model
-
-### Version 1.0.0 (2025-10-27)
-- ✅ Initial release
-- ✅ Basic face recognition
-- ✅ Insert/Update endpoints
-- ✅ Mulai/Akhiri piket
-
----
-
-## 🤝 Contributing
-
-1. Fork repository
-2. Buat branch baru: `git checkout -b feature/AmazingFeature`
-3. Commit changes: `git commit -m 'Add some AmazingFeature'`
-4. Push to branch: `git push origin feature/AmazingFeature`
-5. Open Pull Request
+- API ini **TIDAK menggunakan authentication/authorization**
+- Untuk production, tambahkan JWT/OAuth2
+- Lindungi dengan API Gateway atau reverse proxy
+- Gunakan HTTPS untuk transmission data
+- Implement rate limiting untuk prevent abuse
 
 ---
 
 ## 📄 License
 
-MIT License - see LICENSE file for details
+MIT License
+
+## 👨‍💻 Development
+
+- **Version**: 3.0.1
+- **Last Updated**: November 27, 2025
+- **Integration**: Laravel SILAB Database
+- **Recent Fixes**:
+  - Fixed `absensi` table structure (removed `user_id` column dependency)
+  - Added proper relationship: `absensi -> jadwal_piket -> user`
+  - Fixed `/api/piket/mulai` and `/api/piket/akhiri` endpoints
+  - Added validation for jadwal_piket and periode_piket
+  - Changed `is_active` to `isactive` to match database schema
 
 ---
 
-## 👨‍💻 Author
+## 🔗 Resources
 
-**Benni**
-- GitHub: [@Benni2013](https://github.com/Benni2013)
-- Project: [api-piket](https://github.com/Benni2013/api-piket)
-
----
-
-## 🆘 Support
-
-Jika ada pertanyaan atau masalah:
-1. Cek section [Troubleshooting](#-troubleshooting)
-2. Lihat log Flask untuk error detail
-3. Open issue di GitHub repository
+- [FaceNet Paper](https://arxiv.org/abs/1503.03832)
+- [keras-facenet Documentation](https://github.com/nyoki-mtl/keras-facenet)
+- [Flask Documentation](https://flask.palletsprojects.com/)
+- [OpenCV Documentation](https://docs.opencv.org/)
 
 ---
 
-**Last Updated:** November 4, 2025
-**Last Updated:** November 4, 2025
+## 🙏 Acknowledgments
+
+- FaceNet model by Google
+- keras-facenet by nyoki-mtl
+- SILAB Database Structure
